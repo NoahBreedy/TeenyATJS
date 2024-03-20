@@ -79,9 +79,34 @@
     <body>
         <h1>Write Text Here</h1>
 <textarea id="asm-text" name="asm-text" rows="40" cols="50">
-set ra, 10
-str [0x9000], ra
-    
+; SHOULD PRINT 40....
+                  jmp !maiN
+    !Data_Array
+
+
+        .raw 12 43 !mAIn         0x7656 !test
+        
+            .cONstant DEBUG 0x9000
+                .var HELLO 40 ; the magic numba :)
+            
+            
+        !main    
+            set Ra,nice
+        jmp !test
+                    .variable NICE 69
+            
+            !test
+                    set   rc,0
+                      lod rb, [ rc+   YO ]
+            .CoNst YO HELLO
+                
+
+
+sTr [RZ+DebUG], rb
+
+; This is a cool little stress test for my asmblr
+; Try to trace through the code if you can... >:)
+ 
 </textarea>
         <div class="right-align">
             <button onclick="assemble()">Parse</button><br>

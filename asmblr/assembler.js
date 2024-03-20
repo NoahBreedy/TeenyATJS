@@ -2,18 +2,39 @@
 *   Simple assembler written by Noah Breedy 
 *   Started on 3/19/2024  [1:35pm]
 *   Version: 1.0.0 done on 3/19/2024 [11:03pm]
+*   Version: 1.0.1 done on 3/20/2024 [4:50pm]
 *   Currently the syntax is opcode reg1 , reg2 + immed
 *   
-*   Some problems ive encountered are random nop being injected in the binary
-*   This shouldnt however actually affect anything
+*   NOTE: THIS ASSEMBLER SHOULD BE TESTED 
 *   
+*   NOTE: You can write hex 0xBEEF but you cannot write binary 0b00000 
+*   
+*   NOTE: The [] and , are optional but you should still write them
+*   as they make code easier to read
+*   
+*   NOTE: There is no auto detect of raw lines all raw lines need to be specified with the 
+*   
+*       .raw key work
+*    
+*   EXAMPLE:
+*       !Array
+*           .raw 10 56 !main 0x9000 
+*   
+*   NOTE:
+*       You cannot do register subtracted from an immediate directly
+*       set ra, rb - 10
+*       
+*       However you can do this...
+*       set ra, rb + -10
+*   
+*   
+*
 *   Still needs testing and wont produce exactly the same binaries as the C
 *   version of the assembler but will still give exactly the same output
 *   
-*   This assembler will not give out any errors and will attempt to compile 
-*   your binary regardless. This can result in some wony output if you were
-*   to write an invalid assembly syntax
-*   
+*   BIG NOTE: This assembler will not give out any errors and will attempt to compile 
+*             your binary regardless. This can result in some wony final output if you were
+*             to write some invalid assembly syntax
 */
 
 const opcodes_dict = {
@@ -65,6 +86,7 @@ const registers_dict = {
 };
 
 const jmp_pseudo_inst_dict = {
+    "jmp": 0,
     "jg":  1,
     "jl":  2,
     "jne": 3,
@@ -82,7 +104,15 @@ const ret_pseudo_dict = {
     "ret": 4,
 };
 
-const MAX_LABEL_RESOLVER = 2;
+const MAX_LABEL_RESOLVES = 100;
+
+function dec2bin(dec) {
+    return (dec >>> 0).toString(2).padStart(16, '0');
+}
+
+function isNumber(val){
+    return !isNaN(parseInt(val))
+}
 
 function isRegister(name){
     return name in registers_dict;
@@ -92,28 +122,45 @@ function isRawLine(name){
     return name == ".raw";
 }
 
-function isLabel(name){
+function isVariableDeclaration(name){
+    return ((name == ".var") || (name == ".variable"));
+}
+
+function isConstantDeclaration(name){
+    return ((name == ".const") || (name == ".constant"));
+}
+
+function isLabelDeclaration(name){
     return name[0] == '!';
 }
 
-function isValidLabel(name,dict){
-    let len = Object.keys(dict).length;
-    if(len == 0) return false;
-    return name in dict;
+function isValidConstant(name){
+    return name in constant_tracker;
 }
 
-function isNumber(val){
-   return !isNaN(parseInt(val))
+function isValidVariable(name){
+    return name in variable_tracker;
+}
+
+function isValidLabel(name){
+    return name in lable_tracker;
 }
 
 function containsOnlySpaces(inputString) {
     return inputString.trim() === '';
 }
 
-function dec2bin(dec) {
-    return (dec >>> 0).toString(2).padStart(16, '0');
+function processValue(val){
+    if(isValidConstant(val)) return constant_tracker[val];
+    if(isValidVariable(val)) return variable_tracker[val];
+    if(isValidLabel(val)) return lable_tracker[val];
+    if(isNumber(val)) return parseInt(val);
+    return NaN;   
 }
 
+let lable_tracker = {};
+let constant_tracker = {};
+let variable_tracker = {};
 function assemble(){
     
     let text = document.getElementById("asm-text").value
@@ -127,21 +174,23 @@ function assemble(){
             lines.push(current_line.toLowerCase());
         }
     }
-
     const line_length = lines.length;
     let loop_number = 0;
     let address_number = 0x0000;
-    let lable_tracker = {};
-
+    let routine_address_number = 0x0000;
     let binary_image = [];
+    let finished_label_resolving = true;
+    lable_tracker = {};
+    constant_tracker = {};
+    variable_tracker = {};
 
-
-    // Need to do this loop at least twice to account for the proper addresses
-    for(var label_resolver = 0; label_resolver < MAX_LABEL_RESOLVER; label_resolver++){
+    // Need to do this loop at least twice (if labels present) to account for the proper addresses
+    for(var label_resolver = 0; label_resolver < MAX_LABEL_RESOLVES; label_resolver++){
         binary_image = [];
+        finished_label_resolving = true;
+        routine_address_number = 0x0000;
         console.log(`\n\nPASS #${label_resolver+1}`);
         for(loop_number = 0; loop_number < line_length; loop_number++){
-
                 let current_line = lines[loop_number];   
                 /* trim comments on current line */ 
                 for(let i = 0; i < current_line.length; i++){
@@ -159,50 +208,37 @@ function assemble(){
                         tokens.push(current_token);
                     }
                 }
+               
                 let token_length = tokens.length;
-                console.log(tokens);
+
+                /* this is a raw comment line */
+                if(token_length == 0) continue;
+
                 /* Handle Raw Lines */
                 if(isRawLine(tokens[0])){
                     for(let i = 1; i < token_length; i++){
-
-                        if(isValidLabel(tokens[i],lable_tracker)){
-                           binary_image.push(lable_tracker[tokens[i]]);
-                        }else if(isNumber(tokens[i])){
-                            binary_image.push(parseInt(tokens[i]));
-                        }      
+                        /* Check if Constant,Variable,Label,Number */
+                        binary_image.push(processValue(tokens[i]));
                         address_number++;
+                        routine_address_number++;
                     }
                     continue;
                 }
 
+
                 //                     11  10  7   4     0   << shift_positions
                 //                  0b00000_0_000_000_0000
                 let word_encoding = 0b0000000000000000;
-                
-                /* For now im only handeling opcodes lables and variables later */
+
+                /* By default we will have the pc be set to the pc */
                 let opcode = tokens[0];
-
-                /* Remember to change the assembly if the opcode is pseudo (JMP instructions)*/
-                if(opcode in opcodes_dict){
-                    word_encoding |= ((opcodes_dict[opcode]) << 11) & 0xFFFF;
-                }
-
                 let teeny = 0;
-                let reg1 = 0
+                let reg1 = 0;
                 let reg2 = registers_dict['rz'];
-                let immed = 0;
+                let immed = 0; 
+                let inst_flags = false;
+                let variable_flag = false;
 
-                /*
-                *    This is where we will process line tokens
-                */
-                if(token_length >= 2){
-                    reg1 = tokens[1];
-                }
-
-                /* maybe throw Error if reg1 null */
-                if(reg1 in registers_dict){
-                    word_encoding |= ((registers_dict[reg1]) << 7) & 0xFFFF;
-                }
 
                 if(token_length == 1){
                      /* 
@@ -210,222 +246,207 @@ function assemble(){
                             opcode 
                             label 
                     */
-
-                    /*  handle the RET pseudo isntrustion here */
+                    
                     if(tokens[0] in ret_pseudo_dict){
-                        teeny = 1;
-                        word_encoding |= ((opcodes_dict["pop"]) << 11) & 0xFFFF;
-                        word_encoding |= ((registers_dict["pc"]) << 7) & 0xFFFF;
-                        word_encoding |= ((registers_dict["pc"]) << 4) & 0xFFFF;
+                            opcode = opcodes_dict["pop"];
+                            teeny = 1;
+                            reg1 = registers_dict["pc"];
+                            reg2 = registers_dict["pc"]
+                            immed = 0;
                     }
 
-                    if(isLabel(tokens[0])){
-                        if(!(tokens[0] in lable_tracker)){
+                    if(isLabelDeclaration(tokens[0])){
+                        if(!isValidLabel(tokens[0])){
+                            finished_label_resolving = false;
                             lable_tracker[tokens[0]] = address_number;
-                            console.log(lable_tracker);
                         }
+                        if(isValidLabel(tokens[0]) && lable_tracker[tokens[0]] != routine_address_number){
+                            finished_label_resolving = false;
+                            lable_tracker[tokens[0]] = routine_address_number;
+                        }
+                        // console.log(lable_tracker);
                         continue;
                     }      
+
                 }else if(token_length == 2){
-
-                         /* 
-                            2 means that its in the style of either
-                            opcode register
-                            opcode immed 
-                        */
-                        
-                        if(opcode == "dly" || opcode == "cal"){
-                            /* Have it default teeny as it wont process labels right other wise */
-                            teeny = 1;
-                            if(isValidLabel(reg1,lable_tracker)){
-                                immed = lable_tracker[reg1];
-                            }else if(isNumber(reg1)){
-                                immed = parseInt(reg1);
-                            }else if(isRegister(reg1)){
-                                immed = 0;
-                                word_encoding |= ((registers_dict[reg1]) << 4) & 0xFFFF;
-                            }
-                            
-                            if(!(immed >= -8 && immed <= 7) && typeof immed !== 'undefined'){
-                                teeny = 0;
-                            }
-                            word_encoding |= ((registers_dict["rz"]) << 7) & 0xFFFF; 
+                   /* 
+                        2 means that its in the style of either
+                        opcode register
+                        opcode immed 
+                   */
+                        if(tokens[0] in opcodes_dict){
+                            opcode = opcodes_dict[tokens[0]];
                         }
 
-                        /* handles JUMP Instructions */
-                        if(opcode in jmp_pseudo_inst_dict){
-
-                            if(isValidLabel(tokens[1],lable_tracker)){
-                                immed = lable_tracker[tokens[1]];
-                            }else if(isNumber(tokens[1])){
-                                immed = parseInt(tokens[1]);
-                            }
-
-                            word_encoding |= ((opcodes_dict["jmp"]) << 11) & 0xFFFF;
-                            word_encoding |= (jmp_pseudo_inst_dict[opcode] << 0) & 0xF;
-                        }
-
-                        /* handles INC & DEC Instructions */
-                        if(opcode in inc_dec_pseudo_inst_dict){
-                            immed = 1;
-                            teeny = 1;
-                            word_encoding |= ((registers_dict["rz"]) << 4) & 0xFFFF; 
-                            word_encoding |= ((inc_dec_pseudo_inst_dict[opcode]) << 11) & 0xFFFF;
-                        }
-
-                        // This is like this since you can only pop from a register
-                        if(opcode == "pop"){
-                            teeny = 1;
-                            immed = 0;
-                            word_encoding |= ((registers_dict[reg1]) << 7) & 0xFFFF;
-                        }
-
-                        if(opcode == "psh"){
-                            if(!isValidLabel(tokens[1],lable_tracker)){
-                                // default zero because if its not a number its a register
-                                immed = 0;
-                                if(isNumber(tokens[1])){
-                                    immed = parseInt(tokens[1]);
-                                }
-                            }else if(isValidLabel(tokens[1],lable_tracker)){
-                                immed = lable_tracker[1];
-                            }
-                            if((immed >= -8 && immed <= 7)){
+                        immed = processValue(tokens[1]);
+                        register_flag = false;
+                        if(isNaN(immed)){
+                            if(isRegister(tokens[1])){
                                 teeny = 1;
+                                register_flag = true;
+                                reg1 = registers_dict[tokens[1]];
+                                reg2 = registers_dict["rz"];
+                                immed = 0;
+                                if(opcode == "dly" || opcode == "cal"){
+                                    reg1 = registers_dict["rz"];
+                                    reg2 = registers_dict[tokens[1]];
+                                }
                             }
                         }
 
-                }
-                else if(token_length == 3){
+                        /* INC & DEC instructions */
+                        if(tokens[0] in inc_dec_pseudo_inst_dict){
+                            opcode = inc_dec_pseudo_inst_dict[tokens[0]];
+                            immed = 1;
+                            if(isRegister(tokens[1])){
+                                reg1 = registers_dict[tokens[1]];
+                            }
+                        }
+
+                        if(immed >= -8 && immed <= 7){
+                            teeny = 1;
+                        }
+
+                        /* JUMP instructions */
+                        if(tokens[0] in jmp_pseudo_inst_dict){
+                            opcode = opcodes_dict["jmp"];
+                            teeny = 0;
+                            immed = processValue(tokens[1]);
+                            if(register_flag) teeny = 1;
+                            inst_flags = jmp_pseudo_inst_dict[tokens[0]];
+                        }
+
+                }else if(token_length == 3){
+
                     /* 
                         3 means that its in the style of either
                         opcode r1, r2
                         opcode r1, immed 
+                        opcode immed, r2
+                        .constant name value
+                        .variable name value
                     */
-                    
-                    
-                    reg2 = tokens[2];
-                    if(reg2 in lable_tracker){
-                        reg2 = lable_tracker[reg2]
-                    }
 
-                    /* Handles DELAY style3 instructions */
-                    if(opcode == "dly" || opcode == "cal"){
-                        // put register1 into reg2 slot & zero into register 1 slot
-                        word_encoding |= ((registers_dict["rz"]) << 7) & 0xFFFF; 
-                        word_encoding |= ((registers_dict[reg1]) << 4) & 0xFFFF;  
-                    }
+                    opcode = opcodes_dict[tokens[0]];
+                    reg1 = registers_dict[tokens[1]];
+                    immed  = processValue(tokens[2]);
 
-                    if(isValidLabel(reg2,lable_tracker)){
-                        immed = lable_tracker[reg2];
-                        if(opcode != "dly" || opcode == "cal"){
-                            word_encoding |= ((registers_dict["rz"]) << 4) & 0xFFFF; 
-                        }
-                        if(immed >= -8 && immed <= 7){
-                            teeny = 1;
-                        }
-                    }else if(isNumber(reg2)){
-                        immed = parseInt(reg2);
-                        if(opcode != "dly" || opcode == "cal"){
-                            word_encoding |= ((registers_dict["rz"]) << 4) & 0xFFFF; 
-                        }
-                        if(immed >= -8 && immed <= 7){
-                            teeny = 1;
-                        }
-
-                    }else{
-                        
-                        if(reg2 in registers_dict){
-                            if(opcode != "dly" || opcode == "cal"){
-                                word_encoding |= ((registers_dict[reg2]) << 4) & 0xFFFF; 
-                            } 
-                        }
-                        
-                        immed = 0;
-                        teeny = 1;
-                    }
-
-                    /* this is here to account for JUMP label resolution */
-                    if(opcode in jmp_pseudo_inst_dict || opcode == "jmp"){
-                       if(!isValidLabel(tokens[2],lable_tracker)){
+                    if(isNaN(immed)){
+                        if(isRegister(tokens[2])){
                             immed = 0;
-                            teeny = 1;
-                       }else if(isValidLabel(tokens[2],lable_tracker)){
-                            teeny = 0;
-                            immed = lable_tracker[tokens[2]];
-                       }
+                            reg2 = registers_dict[tokens[2]];
+                        }
                     }
 
-                    /* STORE logic is flipped */
-                    if(opcode == "str"){
-                        teeny = 0;
-                        immed = 0;
-                        if(isValidLabel(reg1,lable_tracker)){
-                            immed = lable_tracker[reg1]
-                            word_encoding |= ((registers_dict["rz"]) << 7) & 0xFFFF; 
-                        }else if(isNumber(reg1)){
-                            immed = parseInt(reg1);
-                            word_encoding |= ((registers_dict["rz"]) << 7) & 0xFFFF; 
-                        }
-
-                        if(immed >= -8 && immed <= 7){
-                            teeny = 1;
-                        }
-
-                        reg2 = tokens[2];
-                        if(isRegister(reg2)){
-                            word_encoding |= ((registers_dict[reg2]) << 4) & 0xFFFF; 
-                        }
-                        
-                    }
-                    
-
-                }else if(token_length == 4){
-                    /* 
-                        4 means that its in the style of 
-                        opcode r1, r2 + immed
-                    */
-                    reg2 = tokens[2];
-                    if(reg2 in registers_dict){
-                        word_encoding |= ((registers_dict[reg2]) << 4) & 0xFFFF;  
-                    }
-                    
-                    if(isValidLabel(tokens[3],lable_tracker)){
-                        immed = lable_tracker[tokens[3]]
-                    }else if(isNumber(tokens[3])){
-                        immed = parseInt(tokens[3]);
+                    if(tokens[0] == "dly" || tokens[0] == "cal"){
+                        reg1 = registers_dict["rz"];
+                        reg2 = registers_dict[tokens[1]];
+                        immed  = processValue(tokens[2]);
+                        /* This should not happen but can happen if you do r1, r2 + r3 */
+                        if(isNaN(immed)) immed = 0;
                     }
 
                     if(immed >= -8 && immed <= 7){
                         teeny = 1;
                     }
 
-                    /* STORE logic is flipped */
-                    if(opcode == "str"){
+                    /* Handle STORE Instruction */
+                    if(tokens[0] == "str"){
                         teeny = 0;
-                        immed = 0;
-                        if(isValidLabel(tokens[2],lable_tracker)){
-                            immed = lable_tracker[tokens[2]]
-                        }else if(isNumber(tokens[2])){
-                            immed = parseInt(tokens[2]);
+                        reg2 = registers_dict[tokens[2]];
+                        immed = processValue(tokens[1]);
+                        if(isNaN(immed)){
+                            if(isRegister(tokens[1])){
+                                immed = 0;
+                                teeny = 1;
+                                reg1 = registers_dict[tokens[1]];
+                            }
+                        }else{
+                            reg1 = registers_dict["rz"];
                         }
-                
                         if(immed >= -8 && immed <= 7){
                             teeny = 1;
                         }
-                        console.log(immed,teeny)
-                        reg2 = tokens[3];
-                        if(isRegister(reg2)){
-                            word_encoding |= ((registers_dict[reg2]) << 4) & 0xFFFF; 
-                        }
-                        
                     }
 
+                    if(isVariableDeclaration(tokens[0])){
+                        teeny = 1;
+                        if(!isValidVariable(tokens[1])){
+
+                            variable_tracker[tokens[1]] = address_number;
+                            immed = processValue(tokens[2]);
+                            if(isNaN(immed)){
+                                if(isRegister(tokens[2])){
+                                    immed = registers_dict[tokens[2]];
+                                }
+                            }
+                            variable_flag = true;
+
+                            // console.log(variable_tracker);
+
+                        }else if(isValidVariable(tokens[1])){
+                            immed = processValue(tokens[2]);
+                            if(isNaN(immed)){
+                                if(isRegister(tokens[2])){
+                                    immed = registers_dict[tokens[2]];
+                                }
+                            }
+                            variable_flag = true;
+                        }
+                    }
+
+                    if(isConstantDeclaration(tokens[0])){
+                        if(!isValidConstant(tokens[1])){
+                            immed = processValue(tokens[2]);
+                            if(isNaN(immed)){
+                                if(isRegister(tokens[2])){
+                                    immed = registers_dict[tokens[2]];
+                                }
+                            }
+                            constant_tracker[tokens[1]] = immed;
+                        }
+                        continue;
+                    }
+                    
+                    if(tokens[0] in jmp_pseudo_inst_dict){
+                        /* opcode r1 + immed*/
+                        inst_flags = jmp_pseudo_inst_dict[tokens[0]];
+                        teeny = 0;
+                        immed = processValue(tokens[2]);
+                        if(isNaN(immed)) immed = 0;
+                    }
+
+                }else if(token_length == 4){
+                     /* 
+                        4 means that its in the style of either
+                        opcode r1, r2 + immed
+                        opcode r1 + immed, r2
+                    */
+                    opcode = opcodes_dict[tokens[0]];
+                    reg1 = registers_dict[tokens[1]];
+                    reg2 = registers_dict[tokens[2]];
+                    immed = processValue(tokens[3]);
+                    
+                    /* Handle STORE Instruction */
+                    if(tokens[0] == "str"){
+                        immed = processValue(tokens[2]);
+                        reg2 = registers_dict[tokens[3]];
+                    }
+
+                    if(isNaN(immed)) immed = 0;
+                    if(immed >= -8 && immed <= 7){
+                        teeny = 1;
+                    }
                 }
 
+                word_encoding |= (opcode << 11) & 0xFFFF;
                 word_encoding |= (teeny << 10) & 0xFFFF;
+                word_encoding |= (reg1 << 7) & 0xFFFF;
+                word_encoding |= (reg2 << 4) & 0xFFFF;
+                if(inst_flags) word_encoding |= (inst_flags << 0) & 0xF;
                 if(teeny){
-                    word_encoding |= (immed << 0) & 0xF;
+                    if(!inst_flags) word_encoding |= (immed << 0) & 0xF;
+                    if(variable_flag) word_encoding = (immed) & 0xFFFF;
                     console.log("One Word: ");
                     console.log(dec2bin(word_encoding));
                     binary_image.push(word_encoding);
@@ -438,14 +459,18 @@ function assemble(){
                     binary_image.push(word_encoding);
                     binary_image.push(word2_encoding);
                     address_number++;
+                    routine_address_number++;
                 }
 
                 address_number++;
+                routine_address_number++;
+        }
+        if(finished_label_resolving){
+            break;
         }
     }
-    console.table(binary_image);
+
     const binaryData = new Uint16Array(binary_image);
-    console.log(binaryData);
     const blob = new Blob([binaryData]);
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -456,4 +481,5 @@ function assemble(){
     link.download = `${file_name}.bin`;
     link.click();
     URL.revokeObjectURL(link.href);
+    console.table(binary_image);
 }

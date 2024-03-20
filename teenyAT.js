@@ -38,6 +38,7 @@ const TNY_OPCODE_DJZ = 22;
 const TNY_OPCODE_DLY = 23;
 
 // Define register indices as constants
+const TNY_REGISTER_COUNT = 8;
 const TNY_REG_PC   = 0;
 const TNY_REG_SP   = 1;
 const TNY_REG_ZERO = 2;
@@ -60,6 +61,7 @@ function TeenyAT(){
         less: 0,
         greater: 0,
       };
+    
     this.ram = new Array(0x8000).fill({ u: 0, s: 0}); // RAM
     this.bin_image = new Array(0x8000).fill({ u: 0, s: 0}); // Binary Image
     this.bus_read = null;
@@ -67,6 +69,8 @@ function TeenyAT(){
     this.initialized = false;
     this.delay_cycles = 0;
     this.cycle_cnt = 0;
+    
+    this.extra_data = null;
 
     this.set_elg_flags = (alu_result) => {
         this.flags.equals = (alu_result == 0) ? 1 : 0;
@@ -151,14 +155,10 @@ function TeenyAT(){
         if(!this) return false
         // Restore RAM to its initial post-bin-load state with endianness kept in mind
         this.swap_endian(this.bin_image);
-        this.reg[TNY_REG_PC].u.value = 0;
-        this.reg[TNY_REG_SP].u.value = 0x7FFF;
-        this.reg[TNY_REG_ZERO].u.value = 0;
-        this.reg[TNY_REG_A].u.value = 0;
-        this.reg[TNY_REG_B].u.value = 0;
-        this.reg[TNY_REG_C].u.value = 0;
-        this.reg[TNY_REG_D].u.value = 0;
-        this.reg[TNY_REG_E].u.value = 0;
+        for(var i = 0; i < TNY_REGISTER_COUNT; i++){
+          this.reg[i] = {u:new BitManip.UINT16(0) , s:new BitManip.INT16(0)}
+        }
+        this.reg[TNY_REG_SP] = {u:new BitManip.UINT16(0x7FFF) , s:new BitManip.INT16(0x7FFF)}
         this.flags = {
           carry: 0,
           equals: 0,
@@ -171,7 +171,6 @@ function TeenyAT(){
     };
 
     this.tny_clock = () =>{
-        
         this.cycle_cnt++;
       
         if(this.delay_cycles){
@@ -207,13 +206,13 @@ function TeenyAT(){
         }
  
         this.inc_pc();
-        
         //console.log(opcode,teeny,reg1,reg2,immed);
         //console.log(equals,less,greater);
         switch(opcode){
           case TNY_OPCODE_SET:
+            //  console.log(opcode,teeny,reg1,reg2,immed);
             this.reg[reg1].s = new BitManip.INT16(BitManip.add(this.reg[reg2].s,immed.s)); 
-            this.reg[reg1].u = new BitManip.UINT16(BitManip.add(this.reg[reg2].u,immed.u)); 
+            this.reg[reg1].u = new BitManip.UINT16(BitManip.add(this.reg[reg2].u,immed.s)); 
             break;  
           case TNY_OPCODE_LOD:{
             const addr = new BitManip.UINT16(BitManip.add(this.reg[reg2].s, immed.s));
@@ -229,7 +228,7 @@ function TeenyAT(){
               this.reg[reg1] = data;
               this.delay_cycles += delay;
             }else{
-              this.reg[reg1] = this.ram[addr];
+              this.reg[reg1] = this.ram[addr.value];
             }
             this.delay_cycles += TNY_BUS_DELAY;
           }
@@ -247,7 +246,7 @@ function TeenyAT(){
               }
               this.delay_cycles += delay;
             }else{
-              this.reg[reg2] = this.ram[addr];
+              this.reg[reg2] = this.ram[addr.value];
             }
             this.delay_cycles += TNY_BUS_DELAY;
           }

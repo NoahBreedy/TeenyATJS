@@ -16,18 +16,21 @@ function handleFileSelect(event) {
     reader.onload = function (e) {
       const binaryData = new Uint16Array(e.target.result);
       teenyAt.tny_init_from_file(binaryData,bus_read,bus_write);
+      for(var i  = 0; i < 50; i++){
+        teenyAt.tny_clock();
+      }
     };
 
     reader.readAsArrayBuffer(file);
   }
 }
 
-function update(){
-  requestAnimationFrame(update);
-  if(teenyAt.initialized){
-    teenyAt.tny_clock();
-  }
-}update();
+// function update(){
+//   requestAnimationFrame(update);
+//   if(teenyAt.initialized){
+//     teenyAt.tny_clock();
+//   }
+// }update();
 
 
 function bus_read(addr){
@@ -42,7 +45,7 @@ function bus_write(addr,data){
   console.log(`Bus Write: ${addr}`);
   switch(addr){
     case DEBUG:
-      console.log(`HEllo ${data}`);
+      console.log(`VALUE IS: ${data}`);
       break;
     default:
         console.log("Unhandled")
