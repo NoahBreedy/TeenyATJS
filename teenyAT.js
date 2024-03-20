@@ -1,8 +1,8 @@
 /*
  * Name    : teenyat.js
- * Origional Author  : William "Amos" Confer
+ * Original Author  : William "Amos" Confer
  * Transposer: Noah Breedy
- *
+ * Description: A web portable version of the TeenyAT (how GRAND)
  * License : Copyright (C) 2023 All rights reserved
  */ 
 import * as BitManip from './utils.js'; 
