@@ -35,13 +35,16 @@ function handleFileSelect(event) {
 
 function bus_read(addr){
   let result = null;
+
   console.log(`Bus Read: ${addr}`);
   result = {data:69,delay:0}
+
   return result;
 }
 
 function bus_write(addr,data){
   let result = null;
+
   console.log(`Bus Write: ${addr}`);
   switch(addr){
     case DEBUG:
@@ -50,6 +53,7 @@ function bus_write(addr,data){
     default:
         console.log("Unhandled")
   }
+
   result = {delay:0}
   return result;
 }

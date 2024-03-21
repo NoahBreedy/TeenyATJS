@@ -236,7 +236,7 @@ function TeenyAT(){
           case TNY_OPCODE_STR:{
             const addr = new BitManip.UINT16(BitManip.add(this.reg[reg1].s, immed.s));
             if(addr.value > TNY_MAX_RAM_ADDRESS){
-              /* read from peripheral address */
+              /* write to peripheral address */
               let data = {u:new BitManip.UINT16(0), s:new BitManip.INT16(0)};
               let delay = 0;
               let result = this.bus_write(addr.value,this.reg[reg2].u.value);

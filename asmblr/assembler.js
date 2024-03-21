@@ -21,13 +21,14 @@
 *           .raw 10 56 !main 0x9000 
 *   
 *   NOTE:
-*       You cannot do register subtracted from an immediate directly
-*       set ra, rb - 10
+*       You can also model your instructions to be negative  
 *       
-*       However you can do this...
-*       set ra, rb + -10
-*   
-*   
+*       I.e. 
+*           jmp -!main     
+*           !main
+*      
+*       This will result in a negative 2 being put into the immediate 
+*       However it should be noted that the vm deals with all addresses as unsigned
 *
 *   Still needs testing and wont produce exactly the same binaries as the C
 *   version of the assembler but will still give exactly the same output
@@ -150,6 +151,17 @@ function containsOnlySpaces(inputString) {
     return inputString.trim() === '';
 }
 
+function hasNegatives(name){
+    let count = 0;
+    for(let i = 0; i < name.length; i++){
+        if(name[i] == "-"){
+            count++;
+            if(count >= 2) return count;
+        }
+    }
+    return count;
+}
+
 function processValue(val){
     if(isValidConstant(val)) return constant_tracker[val];
     if(isValidVariable(val)) return variable_tracker[val];
@@ -157,6 +169,7 @@ function processValue(val){
     if(isNumber(val)) return parseInt(val);
     return NaN;   
 }
+
 
 let lable_tracker = {};
 let constant_tracker = {};
@@ -201,24 +214,45 @@ function assemble(){
                 }
                 
                 let raw_tokens = current_line.split(",").join(" ").split(" ").join(" ").split("+").join(" ").split("[").join(" ").split("]").join(" ").split(" ");
+                let test_subtract = raw_tokens.join(" ");
+                let negative_result = hasNegatives(test_subtract);
+                let negate_immediate = false;
+                if(negative_result == 2){
+                    negate_immediate = false
+                }else if(negative_result == 1){
+                    negate_immediate = true;
+                }
+
+                let raw_line_tokens = raw_tokens;
+                raw_tokens = raw_tokens.join(" ").split("-").join(" ").split(" ");
                 let tokens = [];
+                let unnegated_tokens = [];
+
                 for(var i = 0; i < raw_tokens.length; i++){
                     let current_token = raw_tokens[i];
                     if(!containsOnlySpaces(current_token)){
                         tokens.push(current_token);
                     }
                 }
-               
-                let token_length = tokens.length;
+                
+                for(var i = 0; i < raw_line_tokens.length; i++){
+                    let current_token = raw_line_tokens[i];
+                    if(!containsOnlySpaces(current_token)){
+                        unnegated_tokens.push(current_token);
+                    }
+                }
 
-                /* this is a raw comment line */
+                let token_length = tokens.length;
+                console.log(tokens,negate_immediate);
+
+                // /* this is a raw comment line */
                 if(token_length == 0) continue;
 
                 /* Handle Raw Lines */
                 if(isRawLine(tokens[0])){
-                    for(let i = 1; i < token_length; i++){
+                    for(let i = 1; i < unnegated_tokens.length; i++){
                         /* Check if Constant,Variable,Label,Number */
-                        binary_image.push(processValue(tokens[i]));
+                        binary_image.push(processValue(unnegated_tokens[i]));
                         address_number++;
                         routine_address_number++;
                     }
@@ -279,6 +313,7 @@ function assemble(){
                         }
 
                         immed = processValue(tokens[1]);
+                        if(negate_immediate) immed *= -1;
                         register_flag = false;
                         if(isNaN(immed)){
                             if(isRegister(tokens[1])){
@@ -312,6 +347,7 @@ function assemble(){
                             opcode = opcodes_dict["jmp"];
                             teeny = 0;
                             immed = processValue(tokens[1]);
+                            if(negate_immediate) immed *= -1;
                             if(register_flag) teeny = 1;
                             inst_flags = jmp_pseudo_inst_dict[tokens[0]];
                         }
@@ -330,6 +366,7 @@ function assemble(){
                     opcode = opcodes_dict[tokens[0]];
                     reg1 = registers_dict[tokens[1]];
                     immed  = processValue(tokens[2]);
+                    if(negate_immediate) immed *= -1;
 
                     if(isNaN(immed)){
                         if(isRegister(tokens[2])){
@@ -337,11 +374,12 @@ function assemble(){
                             reg2 = registers_dict[tokens[2]];
                         }
                     }
-
+        
                     if(tokens[0] == "dly" || tokens[0] == "cal"){
                         reg1 = registers_dict["rz"];
                         reg2 = registers_dict[tokens[1]];
                         immed  = processValue(tokens[2]);
+                        if(negate_immediate) immed *= -1;
                         /* This should not happen but can happen if you do r1, r2 + r3 */
                         if(isNaN(immed)) immed = 0;
                     }
@@ -355,6 +393,7 @@ function assemble(){
                         teeny = 0;
                         reg2 = registers_dict[tokens[2]];
                         immed = processValue(tokens[1]);
+                        if(negate_immediate) immed *= -1;
                         if(isNaN(immed)){
                             if(isRegister(tokens[1])){
                                 immed = 0;
@@ -375,6 +414,7 @@ function assemble(){
 
                             variable_tracker[tokens[1]] = address_number;
                             immed = processValue(tokens[2]);
+                            if(negate_immediate) immed *= -1;
                             if(isNaN(immed)){
                                 if(isRegister(tokens[2])){
                                     immed = registers_dict[tokens[2]];
@@ -386,6 +426,7 @@ function assemble(){
 
                         }else if(isValidVariable(tokens[1])){
                             immed = processValue(tokens[2]);
+                            if(negate_immediate) immed *= -1;
                             if(isNaN(immed)){
                                 if(isRegister(tokens[2])){
                                     immed = registers_dict[tokens[2]];
@@ -398,6 +439,7 @@ function assemble(){
                     if(isConstantDeclaration(tokens[0])){
                         if(!isValidConstant(tokens[1])){
                             immed = processValue(tokens[2]);
+                            if(negate_immediate) immed *= -1;
                             if(isNaN(immed)){
                                 if(isRegister(tokens[2])){
                                     immed = registers_dict[tokens[2]];
@@ -413,6 +455,7 @@ function assemble(){
                         inst_flags = jmp_pseudo_inst_dict[tokens[0]];
                         teeny = 0;
                         immed = processValue(tokens[2]);
+                        if(negate_immediate) immed *= -1;
                         if(isNaN(immed)) immed = 0;
                     }
 
@@ -426,10 +469,13 @@ function assemble(){
                     reg1 = registers_dict[tokens[1]];
                     reg2 = registers_dict[tokens[2]];
                     immed = processValue(tokens[3]);
-                    
+                    if(negate_immediate) immed *= -1;
+
                     /* Handle STORE Instruction */
                     if(tokens[0] == "str"){
                         immed = processValue(tokens[2]);
+                        if(negate_immediate) immed *= -1;
+
                         reg2 = registers_dict[tokens[3]];
                     }
 
@@ -465,6 +511,7 @@ function assemble(){
                 address_number++;
                 routine_address_number++;
         }
+        
         if(finished_label_resolving){
             break;
         }
