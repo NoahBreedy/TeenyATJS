@@ -175,6 +175,7 @@ function TeenyAT(){
       
         if(this.delay_cycles){
           this.delay_cycles--;
+          if(this.delay_cycles<=0) this.delay_cycles = 0;
           return;
         }
 
