@@ -175,7 +175,6 @@ function TeenyAT(){
       
         if(this.delay_cycles){
           this.delay_cycles--;
-          if(this.delay_cycles<=0) this.delay_cycles = 0;
           return;
         }
 
@@ -443,9 +442,8 @@ function TeenyAT(){
           break;
           case TNY_OPCODE_DLY:{
                let dly_cnt = new BitManip.INT16(BitManip.add(this.reg[reg2].s,immed.s)).svalue;
-               if(dly_cnt >= 1){
-                  this.delay_cycles = dly_cnt - 1;
-               }
+               dly_cnt = new BitManip.UINT16(dly_cnt).value;
+               this.delay_cycles = dly_cnt - 1;
           }
           break;
           default:
