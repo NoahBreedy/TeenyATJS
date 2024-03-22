@@ -49,7 +49,7 @@
 
         .right-align{
             position: absolute;
-            left: 30%;
+            left: 35%;
             top:  10%;
             width: 25%;
         }
@@ -73,12 +73,22 @@
             color: #E91E63;
             padding-top: 20%;
         }
+
+        textarea {
+            box-sizing: border-box;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+            font-size: 16px;
+            resize: none;
+        } 
+
         </style>
     </head>
 
     <body>
         <h1>Write Text Here</h1>
-<textarea id="asm-text" name="asm-text" rows="40" cols="50">
+<textarea id="asm-text" name="asm-text" rows="33" cols="50">
 ; SHOULD PRINT 40....
     jmp !maiN
 !Data_Array
@@ -111,15 +121,16 @@ sTr [RZ+DebUG], rb
 
 
 </textarea>
-        <div class="right-align">
-            <button onclick="assemble()">Parse</button><br>
-            <label id="file-name-label">
-                File Name:
-                <input id="file-name" placeholder="binaryData" type="text"></input>
-            </label>
-        </div>
-        <script src="assembler.js"></script>
-    </body>
+
+<div class="right-align">
+    <button onclick="assemble()">Parse</button><br>
+    <label id="file-name-label">
+            File Name:
+        <input id="file-name" placeholder="binaryData" type="text"></input>
+    </label>
+</div>
+<script src="assembler.js"></script>
+</body>
 
 </html>
 
