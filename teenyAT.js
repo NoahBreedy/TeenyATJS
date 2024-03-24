@@ -220,7 +220,7 @@ function TeenyAT(){
               /* read from peripheral address */
               let data = {u:new BitManip.UINT16(0), s:new BitManip.INT16(0)};
               let delay = 0;
-              let result = this.bus_read(addr.value);
+              let result = this.bus_read(this,addr.value);
               if(result != null){
                   data = {u:new BitManip.UINT16(result.data), s:new BitManip.INT16(result.data)};
                   delay = result.delay;
@@ -239,7 +239,7 @@ function TeenyAT(){
               /* write to peripheral address */
               let data = {u:new BitManip.UINT16(0), s:new BitManip.INT16(0)};
               let delay = 0;
-              let result = this.bus_write(addr.value,this.reg[reg2].u.value);
+              let result = this.bus_write(this,addr.value,this.reg[reg2].u.value);
               if(result != null){
                   data = {u:new BitManip.UINT16(result.data), s:new BitManip.INT16(result.data)};
                   delay = result.delay;

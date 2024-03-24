@@ -25,15 +25,15 @@ function handleFileSelect(event) {
   }
 }
 
-// function update(){
-//   requestAnimationFrame(update);
-//   if(teenyAt.initialized){
-//     teenyAt.tny_clock();
-//   }
-// }update();
+function update(){
+  requestAnimationFrame(update);
+  if(teenyAt.initialized){
+    teenyAt.tny_clock();
+  }
+}update();
 
 
-function bus_read(addr){
+function bus_read(this,addr){
   let result = null;
 
   console.log(`Bus Read: ${addr}`);
@@ -42,7 +42,7 @@ function bus_read(addr){
   return result;
 }
 
-function bus_write(addr,data){
+function bus_write(this,addr,data){
   let result = null;
 
   console.log(`Bus Write: ${addr}`);
